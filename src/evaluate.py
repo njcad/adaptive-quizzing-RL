@@ -50,6 +50,11 @@ def evaluate_policy(transitions, policy=None, num_episodes=1000, gamma=0.99, max
     # track rewards through episodes
     total_reward = 0
 
+    # track (average) cumulative reward per step
+    reward_per_step = {}
+    for i in range(1, 21):
+        reward_per_step[i] = 0
+
     for _ in tqdm(range(num_episodes)):
         current_state = random.choice(list(transitions.keys()))
         episode_reward = 0
@@ -87,12 +92,17 @@ def evaluate_policy(transitions, policy=None, num_episodes=1000, gamma=0.99, max
             discount *= gamma
             current_state = next_state
             episode_length += 1
+            reward_per_step[episode_length] += episode_reward
 
         # ensure episode was valid length and update total reward
         assert(episode_length == max_steps)
         total_reward += episode_reward
 
-    return total_reward / num_episodes
+    # average out reward per step
+    for key in reward_per_step:
+        reward_per_step[key] /= num_episodes
+
+    return total_reward / num_episodes, reward_per_step
 
 
 def policy_details(policy):
@@ -105,8 +115,32 @@ def policy_details(policy):
 
     for key in levels:
         print(f"Number of learned recommendations for question level {key}: {levels[key]}")
-              
-            
+                         
+
+def plot_rewards(dict1, dict2, label1="Learned Policy", label2="Random Policy"):
+    """
+    Plots cumulative rewards for learned and random policy on the same graph.
+    """
+    # Extract step numbers and rewards for both dictionaries
+    steps1, rewards1 = zip(*sorted(dict1.items()))
+    steps2, rewards2 = zip(*sorted(dict2.items()))
+    
+    # Plot both dictionaries
+    plt.figure(figsize=(8, 6))
+    plt.plot(steps1, rewards1, label=label1, color='blue', marker='o')
+    plt.plot(steps2, rewards2, label=label2, color='orange', marker='x')
+    
+    # Add labels, title, and legend
+    plt.xlabel("Step Number")
+    plt.ylabel("Cumulative Reward")
+    plt.title("Cumulative Rewards by Step Number")
+    plt.legend()
+    plt.grid(True)
+
+    plt.savefig("cumulative_reward.png", dpi=300, bbox_inches="tight")
+    plt.show()
+
+
 def main():
     """
     Main driver function to evaluate policy.
@@ -131,13 +165,16 @@ def main():
     # calculate expected rewards
     num_episodes = 10000
     print("Calculating learned expected reward...")
-    learned_expected_reward = evaluate_policy(transitions, policy, num_episodes=num_episodes)
+    learned_expected_reward, learned_reward_per_step = evaluate_policy(transitions, policy, num_episodes=num_episodes)
     print("Calculating random expected reward...")
-    random_expected_reward = evaluate_policy(transitions, num_episodes=num_episodes)
+    random_expected_reward, random_reward_per_step = evaluate_policy(transitions, num_episodes=num_episodes)
 
     # reward is given by average reward per episode, which are normalized to length 20 questions
     print(f"Expected reward from learned policy: {learned_expected_reward}")
     print(f"Expected reward from random policy: {random_expected_reward}")
+
+    # plot
+    plot_rewards(learned_reward_per_step, random_reward_per_step)
 
 
 if __name__ == '__main__':
